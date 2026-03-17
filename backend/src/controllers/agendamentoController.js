@@ -1,5 +1,17 @@
 import prisma from "../lib/prisma.js";
 
+function parseBrazilDateTime(value) {
+  if (!value) return null;
+
+  const hasTimezone = /([zZ]|[+-]\d{2}:\d{2})$/.test(value);
+
+  if (hasTimezone) {
+    return new Date(value);
+  }
+
+  return new Date(`${value}-03:00`);
+}
+
 export async function criarAgendamento(req, res) {
   try {
     const { title, start, end, service, value, status, notes, clienteId } = req.body;
@@ -7,8 +19,8 @@ export async function criarAgendamento(req, res) {
     const agendamento = await prisma.agendamento.create({
       data: {
         title,
-        start: new Date(start),
-        end: new Date(end),
+        start: parseBrazilDateTime(start),
+        end: parseBrazilDateTime(end),
         service,
         value: Number(value),
         status: status || "agendado",
@@ -54,8 +66,8 @@ export async function atualizarAgendamento(req, res) {
       where: { id },
       data: {
         title,
-        start: new Date(start),
-        end: new Date(end),
+        start: parseBrazilDateTime(start),
+        end: parseBrazilDateTime(end),
         service,
         value: Number(value),
         status,
