@@ -27,6 +27,22 @@ const statusMap = {
   cancelled: { label: 'Cancelado', class: 'bg-destructive/20 text-destructive' },
 };
 
+function buildLocalDate(date: string, time: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  return new Date(year, month - 1, day, hour, minute, 0, 0);
+}
+
+function buildStartAndEndISO(date: string, time: string, duration: number) {
+  const startDate = buildLocalDate(date, time);
+  const endDate = new Date(startDate.getTime() + duration * 60000);
+
+  return {
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
+  };
+}
+
 function AppointmentForm({
   date,
   onSave,
@@ -54,19 +70,16 @@ function AppointmentForm({
     }
 
     try {
-      const svc = SERVICES.find(s => s.name === form.service);
-      const client = clients.find(c => c.id === form.clientId);
+      const svc = SERVICES.find((s) => s.name === form.service);
+      const client = clients.find((c) => c.id === form.clientId);
+      const duration = svc?.duration || 60;
 
-      const start = `${date}T${form.time}:00`;
-
-      const [hour, minute] = form.time.split(':').map(Number);
-      const endDate = new Date(date);
-      endDate.setHours(hour, minute + (svc?.duration || 60), 0, 0);
+      const { start, end } = buildStartAndEndISO(date, form.time, duration);
 
       await saveAppointmentApi({
         title: `${client?.name || 'Cliente'} - ${form.service}`,
         start,
-        end: endDate.toISOString(),
+        end,
         service: form.service,
         value: svc?.price || 0,
         status: 'agendado',
@@ -87,12 +100,12 @@ function AppointmentForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label>Cliente *</Label>
-        <Select value={form.clientId} onValueChange={v => setForm(f => ({ ...f, clientId: v }))}>
+        <Select value={form.clientId} onValueChange={(v) => setForm((f) => ({ ...f, clientId: v }))}>
           <SelectTrigger>
             <SelectValue placeholder="Selecione o cliente" />
           </SelectTrigger>
           <SelectContent>
-            {clients.map(c => (
+            {clients.map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {c.name} - {c.vehicle} ({c.plate})
               </SelectItem>
@@ -106,12 +119,12 @@ function AppointmentForm({
 
       <div>
         <Label>Serviço *</Label>
-        <Select value={form.service} onValueChange={v => setForm(f => ({ ...f, service: v }))}>
+        <Select value={form.service} onValueChange={(v) => setForm((f) => ({ ...f, service: v }))}>
           <SelectTrigger>
             <SelectValue placeholder="Selecione o serviço" />
           </SelectTrigger>
           <SelectContent>
-            {SERVICES.map(s => (
+            {SERVICES.map((s) => (
               <SelectItem key={s.name} value={s.name}>
                 {s.name} - R$ {s.price}
               </SelectItem>
@@ -125,7 +138,7 @@ function AppointmentForm({
         <Input
           type="time"
           value={form.time}
-          onChange={e => setForm(f => ({ ...f, time: e.target.value }))}
+          onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
         />
       </div>
 
@@ -133,7 +146,7 @@ function AppointmentForm({
         <Label>Observações</Label>
         <Input
           value={form.notes}
-          onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
           placeholder="Detalhes..."
         />
       </div>
@@ -172,9 +185,7 @@ export default function Agenda() {
         time: format(new Date(apt.start), 'HH:mm'),
         duration: Math.max(
           1,
-          Math.round(
-            (new Date(apt.end).getTime() - new Date(apt.start).getTime()) / 60000
-          )
+          Math.round((new Date(apt.end).getTime() - new Date(apt.start).getTime()) / 60000)
         ),
         price: apt.value,
         status:
@@ -209,23 +220,19 @@ export default function Agenda() {
   const dayAppointments = useMemo(
     () =>
       appointments
-        .filter(a => a.date === selectedDate)
+        .filter((a) => a.date === selectedDate)
         .sort((a, b) => a.time.localeCompare(b.time)),
     [appointments, selectedDate]
   );
 
   async function handleComplete(apt: Appointment) {
     try {
-      const start = `${apt.date}T${apt.time}:00`;
-
-      const [hour, minute] = apt.time.split(':').map(Number);
-      const endDate = new Date(apt.date);
-      endDate.setHours(hour, minute + apt.duration, 0, 0);
+      const { start, end } = buildStartAndEndISO(apt.date, apt.time, apt.duration);
 
       await updateAppointmentApi(apt.id, {
-        title: `${clients.find(c => c.id === apt.clientId)?.name || 'Cliente'} - ${apt.service}`,
+        title: `${clients.find((c) => c.id === apt.clientId)?.name || 'Cliente'} - ${apt.service}`,
         start,
-        end: endDate.toISOString(),
+        end,
         service: apt.service,
         value: apt.price,
         status: 'concluido',
@@ -233,7 +240,7 @@ export default function Agenda() {
         clienteId: apt.clientId,
       });
 
-      const client = clients.find(c => c.id === apt.clientId);
+      const client = clients.find((c) => c.id === apt.clientId);
       if (client) {
         const msg = `Olá ${client.name}! 🚘✨
 
@@ -258,11 +265,7 @@ Obrigado pela preferência! 🙏`;
 
   async function handleStatusChange(apt: Appointment, status: Appointment['status']) {
     try {
-      const start = `${apt.date}T${apt.time}:00`;
-
-      const [hour, minute] = apt.time.split(':').map(Number);
-      const endDate = new Date(apt.date);
-      endDate.setHours(hour, minute + apt.duration, 0, 0);
+      const { start, end } = buildStartAndEndISO(apt.date, apt.time, apt.duration);
 
       const backendStatus =
         status === 'scheduled'
@@ -274,9 +277,9 @@ Obrigado pela preferência! 🙏`;
           : 'cancelado';
 
       await updateAppointmentApi(apt.id, {
-        title: `${clients.find(c => c.id === apt.clientId)?.name || 'Cliente'} - ${apt.service}`,
+        title: `${clients.find((c) => c.id === apt.clientId)?.name || 'Cliente'} - ${apt.service}`,
         start,
-        end: endDate.toISOString(),
+        end,
         service: apt.service,
         value: apt.price,
         status: backendStatus,
@@ -322,7 +325,7 @@ Obrigado pela preferência! 🙏`;
 
       <div className="glass-card rounded-xl p-4">
         <div className="flex items-center justify-between mb-4">
-          <Button variant="ghost" size="sm" onClick={() => setCurrentDate(d => addDays(d, -7))}>
+          <Button variant="ghost" size="sm" onClick={() => setCurrentDate((d) => addDays(d, -7))}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
 
@@ -331,17 +334,17 @@ Obrigado pela preferência! 🙏`;
             {format(addDays(weekStart, 6), 'dd MMM yyyy', { locale: ptBR })}
           </span>
 
-          <Button variant="ghost" size="sm" onClick={() => setCurrentDate(d => addDays(d, 7))}>
+          <Button variant="ghost" size="sm" onClick={() => setCurrentDate((d) => addDays(d, 7))}>
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
 
         <div className="grid grid-cols-7 gap-2">
-          {weekDays.map(day => {
+          {weekDays.map((day) => {
             const dateStr = format(day, 'yyyy-MM-dd');
             const isSelected = dateStr === selectedDate;
             const isToday = isSameDay(day, new Date());
-            const dayApts = appointments.filter(a => a.date === dateStr);
+            const dayApts = appointments.filter((a) => a.date === dateStr);
 
             return (
               <button
@@ -383,8 +386,8 @@ Obrigado pela preferência! 🙏`;
         ) : (
           <div className="space-y-3">
             {dayAppointments.map((apt, i) => {
-              const client = clients.find(c => c.id === apt.clientId);
-              const st = statusMap[apt.status];
+              const client = clients.find((c) => c.id === apt.clientId);
+              const st = statusMap[apt.status as keyof typeof statusMap];
 
               return (
                 <motion.div

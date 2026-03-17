@@ -17,6 +17,22 @@ const statusMap = {
   cancelled: { label: 'Cancelado', class: 'bg-destructive/20 text-destructive' },
 };
 
+function buildLocalDate(date: string, time: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  return new Date(year, month - 1, day, hour, minute, 0, 0);
+}
+
+function buildStartAndEndISO(date: string, time: string, duration: number) {
+  const startDate = buildLocalDate(date, time);
+  const endDate = new Date(startDate.getTime() + duration * 60000);
+
+  return {
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
+  };
+}
+
 export default function Dashboard() {
   const [clients, setClients] = useState<Client[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -36,9 +52,7 @@ export default function Dashboard() {
         time: format(new Date(apt.start), 'HH:mm'),
         duration: Math.max(
           1,
-          Math.round(
-            (new Date(apt.end).getTime() - new Date(apt.start).getTime()) / 60000
-          )
+          Math.round((new Date(apt.end).getTime() - new Date(apt.start).getTime()) / 60000)
         ),
         price: apt.value,
         status:
@@ -70,7 +84,7 @@ export default function Dashboard() {
   const todayApts = useMemo(
     () =>
       appointments
-        .filter(a => isToday(parseISO(a.date)))
+        .filter((a) => isToday(parseISO(a.date)))
         .sort((a, b) => a.time.localeCompare(b.time)),
     [appointments]
   );
@@ -78,24 +92,20 @@ export default function Dashboard() {
   const monthRevenue = useMemo(() => {
     const now = new Date();
     return appointments
-      .filter(a => a.status === 'completed' && parseISO(a.date).getMonth() === now.getMonth())
+      .filter((a) => a.status === 'completed' && parseISO(a.date).getMonth() === now.getMonth())
       .reduce((sum, a) => sum + a.price, 0);
   }, [appointments]);
 
-  const completedToday = todayApts.filter(a => a.status === 'completed').length;
+  const completedToday = todayApts.filter((a) => a.status === 'completed').length;
 
   async function handleComplete(apt: Appointment) {
     try {
-      const start = `${apt.date}T${apt.time}:00`;
-
-      const [hour, minute] = apt.time.split(':').map(Number);
-      const endDate = new Date(apt.date);
-      endDate.setHours(hour, minute + apt.duration, 0, 0);
+      const { start, end } = buildStartAndEndISO(apt.date, apt.time, apt.duration);
 
       await updateAppointmentApi(apt.id, {
-        title: `${clients.find(c => c.id === apt.clientId)?.name || 'Cliente'} - ${apt.service}`,
+        title: `${clients.find((c) => c.id === apt.clientId)?.name || 'Cliente'} - ${apt.service}`,
         start,
-        end: endDate.toISOString(),
+        end,
         service: apt.service,
         value: apt.price,
         status: 'concluido',
@@ -103,7 +113,7 @@ export default function Dashboard() {
         clienteId: apt.clientId,
       });
 
-      const client = clients.find(c => c.id === apt.clientId);
+      const client = clients.find((c) => c.id === apt.clientId);
 
       if (client) {
         const msg = `Olá ${client.name}! 🚗✨
@@ -127,16 +137,12 @@ Obrigado pela preferência! 🙏`;
 
   async function handleStart(apt: Appointment) {
     try {
-      const start = `${apt.date}T${apt.time}:00`;
-
-      const [hour, minute] = apt.time.split(':').map(Number);
-      const endDate = new Date(apt.date);
-      endDate.setHours(hour, minute + apt.duration, 0, 0);
+      const { start, end } = buildStartAndEndISO(apt.date, apt.time, apt.duration);
 
       await updateAppointmentApi(apt.id, {
-        title: `${clients.find(c => c.id === apt.clientId)?.name || 'Cliente'} - ${apt.service}`,
+        title: `${clients.find((c) => c.id === apt.clientId)?.name || 'Cliente'} - ${apt.service}`,
         start,
-        end: endDate.toISOString(),
+        end,
         service: apt.service,
         value: apt.price,
         status: 'em_andamento',
@@ -155,7 +161,12 @@ Obrigado pela preferência! 🙏`;
   const stats = [
     { icon: Calendar, label: 'Hoje', value: todayApts.length, color: 'text-primary' },
     { icon: Users, label: 'Clientes', value: clients.length, color: 'text-primary' },
-    { icon: DollarSign, label: 'Receita (mês)', value: `R$ ${monthRevenue.toLocaleString('pt-BR')}`, color: 'text-success' },
+    {
+      icon: DollarSign,
+      label: 'Receita (mês)',
+      value: `R$ ${monthRevenue.toLocaleString('pt-BR')}`,
+      color: 'text-success',
+    },
     { icon: CheckCircle2, label: 'Concluídos hoje', value: completedToday, color: 'text-success' },
   ];
 
@@ -197,8 +208,8 @@ Obrigado pela preferência! 🙏`;
         ) : (
           <div className="space-y-3">
             {todayApts.map((apt, i) => {
-              const client = clients.find(c => c.id === apt.clientId);
-              const st = statusMap[apt.status];
+              const client = clients.find((c) => c.id === apt.clientId);
+              const st = statusMap[apt.status as keyof typeof statusMap];
 
               return (
                 <motion.div
